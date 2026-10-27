@@ -1,0 +1,60 @@
+=== BlindRelay: starting services as separate processes ===
+  [cosigner-b] listening on http://127.0.0.1:8793
+  [mock-llm] OpenAI-shaped provider on http://127.0.0.1:8790/v1 (mock — no real key leaves this machine)
+  [host] untrusted host agent on http://127.0.0.1:8787 — bring me ciphertext, I have no keys
+  [cosigner-a] listening on http://127.0.0.1:8791
+
+=== STEP 1: split the master key (Shamir 3-of-5 over GF(256)) ===
+  [cosigner-a] stored ONE share (x=2). A single share reveals nothing about the secret.
+  [cosigner-b] stored ONE share (x=3). A single share reveals nothing about the secret.
+  [mock-llm] configured: will accept only key fingerprint 3dcbab512187f23e
+  Share 1 (x=1) → local vault file on this machine
+  Share 2 (x=2) → Co-signer A (separate process, holds only this share)
+  Share 3 (x=3) → Co-signer B (separate process, holds only this share)
+  Share 4 (x=4) → paper backup — shown once below, stored NOWHERE by the system
+  Share 5 (x=5) → offline backup file (separate failure domain)
+  Key fingerprint (SHA-256, public): 3dcbab512187f23e
+  The whole master key has been wiped. It now exists only as 5 shares; any 3 reconstruct it, any 2 reveal nothing.
+
+=== STEP 2: run the private agent ===
+  Prompt (exists ONLY locally + at the provider): "Summarize why a hosting platform should never be able to read its users' API keys."
+  [cosigner-a] released its share to the local agent for in-memory reconstruction.
+  [cosigner-b] released its share to the local agent for in-memory reconstruction.
+  [host] job-received: job-ba86330b5b2eed6e prompt ciphertext sha256:4594993fbae5cdea (82 bytes, alg AES-256-GCM) — no key, no plaintext
+  [mock-llm] completion call OK (key fingerprint 3dcbab512187f23e, prompt 82 chars). Provider sees the prompt — the HOST never does.
+  [host] artifact-stored: job-ba86330b5b2eed6e response ciphertext sha256:ad6da23dab43bdee stored as agent memory — still no key, no plaintext
+  [shares-fetched] Fetched 3 shares (local vault + co-signer A + co-signer B). No single holder had the key.
+  [key-reconstructed] Master key rebuilt in memory only and verified by SHA-256 fingerprint 3dcbab512187f23e. It is never written to disk or sent to the host.
+  [job-to-host] Host received job job-ba86330b5b2eed6e: AES-256-GCM ciphertext (sha256:4594993fbae5cdea), metadata only otherwise. The host cannot read the prompt.
+  [llm-called-directly] Mock provider answered a direct local→provider call. The host was not a party to it and saw neither key nor prompt.
+  [artifact-stored] Response encrypted and stored ON THE HOST as agent memory — as ciphertext (sha256:ad6da23dab43bdee). A host breach leaks ciphertext, not conversations.
+  [decrypted-locally] Artifact fetched back and decrypted here, on your machine, with the locally derived session key.
+
+  Agent response, decrypted LOCALLY:
+  Summary: the input describes a system and asks for its essential points. Key idea: separate what a platform must know (that a job ran) from what it must never know (keys and plaintext), using threshold secret sharing plus authenticated encryption.
+
+=== STEP 3: audit — everything the host knows ===
+{
+    "masterKey": null,
+    "keyShares": 0,
+    "plaintextPrompts": 0,
+    "plaintextResponses": 0,
+    "jobsStored": 1,
+    "ciphertextArtifacts": [
+      {
+        "promptSha256": "4594993fbae5cdea",
+        "responseSha256": "ad6da23dab43bdee"
+      }
+    ]
+  }
+
+=== STEP 4: attacks ===
+  [cosigner-a] released its share to the local agent for in-memory reconstruction.
+  [mock-llm] REJECTED call: key fingerprint 78393fd53a59a288 does not match the configured key.
+  [under-threshold] Two shares are mathematically consistent with every possible key, so the guess is worthless: it fails the fingerprint check, fails GCM decryption, and is rejected by the provider.
+    fingerprint match: false | decrypt: AES-256-GCM authentication FAILED — wrong key, ciphertext rejected | provider returned HTTP 401 for the guessed key
+  [cosigner-a] released its share to the local agent for in-memory reconstruction.
+  [cosigner-b] released its share to the local agent for in-memory reconstruction.
+  [tamper] flipped all bits of ciphertext byte 0 in the host-stored artifact -> AES-256-GCM authentication FAILED — a single flipped byte invalidates the whole artifact
+
+=== DEMO COMPLETE: host ran the workflow; host saw no key, no plaintext. ===

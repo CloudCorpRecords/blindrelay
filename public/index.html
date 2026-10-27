@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BlindRelay — Private Agent with Encrypted Inputs</title>
+<style>
+  body { font-family: ui-monospace, Menlo, Consolas, monospace; background:#0b0f14; color:#d6e2ee; margin:2rem auto; max-width:920px; padding:0 1rem; }
+  h1 { color:#7ee2a8; } h2 { color:#8ab8ff; margin-top:2rem; }
+  button { background:#17351f; color:#7ee2a8; border:1px solid #7ee2a8; padding:.5rem 1rem; cursor:pointer; font:inherit; }
+  button:hover { background:#1f4a2b; }
+  textarea { width:100%; background:#11161d; color:#d6e2ee; border:1px solid #33404f; font:inherit; padding:.5rem; }
+  pre { background:#11161d; border:1px solid #33404f; padding:1rem; white-space:pre-wrap; word-break:break-word; }
+  .warn { color:#ffb86b; } .bad { color:#ff7b72; } .ok { color:#7ee2a8; }
+  .panel { border:1px solid #33404f; padding:1rem; margin-top:1rem; }
+</style>
+</head>
+<body>
+<h1>🔐 BlindRelay</h1>
+<p><b>Private agent with encrypted inputs.</b> The host runs the workflow.
+The host never sees the master key — it is Shamir-split across 5 holders
+(threshold 3) — and never sees plaintext: prompts and agent memory move as
+AES-256-GCM ciphertext. The key exists whole only in this page's local
+agent memory, only during a run.</p>
+
+<div class="panel">
+  <h2>1 · Split the master key</h2>
+  <button id="setup">Generate demo key &amp; split it (3-of-5)</button>
+  <pre id="setupOut">Not set up yet.</pre>
+</div>
+
+<div class="panel">
+  <h2>2 · Run the private agent</h2>
+  <textarea id="prompt" rows="3">Summarize why a hosting platform should never be able to read its users' API keys.</textarea>
+  <p><button id="run">Run — host sees ciphertext only</button></p>
+  <pre id="runOut">No run yet.</pre>
+</div>
+
+<div class="panel">
+  <h2>3 · The host's-eye view (everything the host knows)</h2>
+  <button id="hostview">Audit the host</button>
+  <pre id="hostOut">—</pre>
+</div>
+
+<div class="panel">
+  <h2>4 · Attack it</h2>
+  <button id="atk1">Reconstruct with only 2 of 3 shares</button>
+  <button id="atk2">Flip one byte of the stored ciphertext</button>
+  <pre id="atkOut">—</pre>
+</div>
+
+<script>
+const j = (id) => document.getElementById(id);
+const show = (id, obj) => { j(id).textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); };
+async function post(url) { const r = await fetch(url, { method:'POST', headers:{'content-type':'application/json'}, body:'{}' }); return r.json(); }
+j('setup').onclick = async () => { show('setupOut', '…'); show('setupOut', await post('/api/setup')); };
+j('run').onclick = async () => {
+  show('runOut', '…');
+  const r = await fetch('/api/run', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ prompt: j('prompt').value }) });
+  show('runOut', await r.json());
+};
+j('hostview').onclick = async () => { const r = await fetch('/api/host-view'); show('hostOut', await r.json()); };
+j('atk1').onclick = async () => { show('atkOut', '…'); show('atkOut', await post('/api/attack/under-threshold')); };
+j('atk2').onclick = async () => { show('atkOut', '…'); show('atkOut', await post('/api/attack/tamper')); };
+</script>
+</body>
+</html>

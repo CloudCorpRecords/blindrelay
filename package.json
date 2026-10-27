@@ -1,0 +1,1 @@
+{"description":"Private AI agent with encrypted inputs: the host runs the workflow but never sees the master key (Shamir-split) or the plaintext (AES-256-GCM).","engines":{"node":">=18"},"license":"MIT","name":"blindrelay","private":true,"scripts":{"demo":"node demo-cli.js","start":"node start.js","test":"node test.js"},"type":"commonjs","version":"1.0.0"}
